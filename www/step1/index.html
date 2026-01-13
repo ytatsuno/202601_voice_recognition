@@ -1,0 +1,35 @@
+<html>
+  <head>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script>
+  </head>
+  <body>
+    <div id="words"></div>
+    <div id="console"></div>
+    <script>
+        let recognizer;
+
+        function predictWord() {
+            const words = recognizer.wordLabels();
+            document.querySelector("#words").textContent = words;
+            recognizer.listen(({ scores }) => {
+                const best = Array.from(scores)
+                .map((s, i) => ({ score: s, word: words[i] }))
+                .sort((a, b) => b.score - a.score)[0];
+
+                document.querySelector("#console").textContent =
+                `${best.word} (${best.score.toFixed(3)})`;
+            }, { probabilityThreshold: 0.75 });
+        }
+
+        async function app() {
+            recognizer = speechCommands.create("BROWSER_FFT");
+            await recognizer.ensureModelLoaded();
+            predictWord();
+        }
+
+        app();
+
+    </script>
+  </body>
+</html>
