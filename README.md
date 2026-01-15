@@ -1,6 +1,8 @@
-# TensorFlow.js で「アシアル」を音声検知させる
 
-TensorFlow.js を使って、キーワード **「アシアル（asial）」** を含む短音声コマンドを**ブラウザ上で分類**できるか検証しました。  
+# JavaScriptで 「アシアル」を音声認識させる（音声データのCNN学習 + Tensorflow.js による推論）
+
+こんにちは。エンジニアの八尾です。
+今回ですが、TensorFlow.js を使って、キーワード **「アシアル（asial）」** を含む短音声コマンドを**ブラウザ上で分類**できるか検証しました。  
 学習済みモデルの作成手順と、Webアプリでの推論実装（マイク入力→MFCC→predict）までをまとめています。
 
 ソースコード一式はこちらのリポジトリで公開しています。  
@@ -23,8 +25,8 @@ TensorFlow.js は、ブラウザや Node.js 上で機械学習モデルの**学�
 - 自作キーワード：`asial`  
 - 追加クラス：`unknown`, `background_noise`
 ```
-指示コマンド（短時間音声）のデータは、Google が提供している Speech Commands データセットを利用しました。  
-[Speech Commands v0.02](https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_v0.02.tar.gz)
+指示コマンド（短時間音声）のデータは、Tensorflow が提供している Speech Commands データセットを利用しました。  
+[Speech Commands](https://www.tensorflow.org/datasets/catalog/speech_commands?hl=ja)
 
 ### 2-1. 録音データを集める
 
@@ -89,8 +91,21 @@ ffmpeg -i input.wav -ss 0.5 -t 1.0 -ac 1 -ar 16000 -c:a pcm_s16le cut.wav
 
 ## 3. （ブラウザ側）音声推論処理の実装
 
-ブラウザで AudioContext から取得した音声データを推論します。
-推論のため、学習済み model が読み込めるデータ（ある長さのフレーム毎の特徴量数を含むMFCC（メル周波数ケプストラム係数[1, T, 13, 1]）のまとまり）に変換します。
+こちらの音声認識のモデルを利用して以下のWebアプリを作成しました。
+
+```
+- 絵文字「:turtle:」を画面中央に描画
+-「up」、「down」、「left」、「right」を音声認識で聞こえたら、「:turtle:」の向きを変更
+-「go」 を音声認識で聞こえたら、「:turtle:」の位置を変更（向いている方向へ + 1 ）
+-「asial」が聞こえたら「:turtle:」の大きさを40pxに変更し元の大きさに戻す変更
+-「stop」 を音声認識で聞こえたら、「アプリ終了」を表示して voiceRecognition も止める
+```
+
+動作は以下のような動きとなりました。
+
+<img src="https://raw.githubusercontent.com/ytatsuno/202601_voice_recognition/main/res/step4.gif" alt="">
+
+
 推論までの流れは以下です。
 
 1. `AudioContext` から音声データを `Float32Array`（1次元配列）として取得  
@@ -391,17 +406,6 @@ async function startMicLoop(onaudioprocessCallback) {
     }
   };
 }
-```
-
-こちらの音声認識のモジュールを利用して以下のWebアプリを作成しました。
-
-```
-- 画面左上から画面高さ広さ90%の部分を利用する
-- 絵文字「:turtle:」を画面中央に描画
--「up」、「down」、「left」、「right」を音声認識で聞こえたら、「:turtle:」の向きを変更
--「go」 を音声認識で聞こえたら、「:turtle:」の位置を変更（向いている方向へ + 1 ）
--「asial」が聞こえたら「:turtle:」の大きさを40pxに変更し元の大きさに戻す変更
--「stop」 を音声認識で聞こえたら、「アプリ終了」を表示して voiceRecognition も止める
 ```
 
 
@@ -739,13 +743,6 @@ async function startMicLoop(onaudioprocessCallback) {
   </body>
 </html>
 ```
-
-動作は以下のような動きとなりました。
-
-<img src="https://raw.githubusercontent.com/ytatsuno/202601_voice_recognition/main/res/step4.gif" alt="">
-
-
-これでTensorflow.jsを利用して「アシアル」や「go」「right」などの操作語を音声認識できるようになりました。
 
 
 ## 4. 感想
