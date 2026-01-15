@@ -1,8 +1,5 @@
-
-# JavaScriptで 「アシアル」を音声認識させる（音声データのCNN学習 + Tensorflow.js による推論）
-
 こんにちは。エンジニアの八尾です。
-今回ですが、TensorFlow.js を使って、キーワード **「アシアル（asial）」** を含む短音声コマンドを**ブラウザ上で分類**できるか検証しました。  
+今回ですが、TensorFlow.js を使って、キーワード **「アシアル（asial）」** を含む短音声コマンドを**ブラウザ上で分類**できるか検証しました。
 学習済みモデルの作成手順と、Webアプリでの推論実装（マイク入力→MFCC→predict）までをまとめています。
 
 ソースコード一式はこちらのリポジトリで公開しています。  
@@ -11,8 +8,8 @@ https://github.com/ytatsuno/202601_voice_recognition
 
 ## 1. TensorFlow.js とは
 
-TensorFlow.js は、ブラウザや Node.js 上で機械学習モデルの**学習・推論**ができる JavaScript 向けフレームワークです。  
-内部では **Tensor（テンソル）** という多次元配列データ構造を使い、ニューラルネットワークとデータのやり取りを行います。  
+TensorFlow.js は、ブラウザや Node.js 上で機械学習モデルの**学習・推論**ができる JavaScript 向けフレームワークです。
+内部では **Tensor（テンソル）** という多次元配列データ構造を使い、ニューラルネットワークとデータのやり取りを行います。
 そのため、Webサイトや IoT デバイスなどでも、モデル推論を比較的手軽に組み込めます。
 
 
@@ -25,7 +22,7 @@ TensorFlow.js は、ブラウザや Node.js 上で機械学習モデルの**学�
 - 自作キーワード：`asial`  
 - 追加クラス：`unknown`, `background_noise`
 ```
-指示コマンド（短時間音声）のデータは、Tensorflow が提供している Speech Commands データセットを利用しました。  
+指示コマンド（短時間音声）のデータは、Tensorflow が提供している Speech Commands データセットを利用しました。
 [Speech Commands](https://www.tensorflow.org/datasets/catalog/speech_commands?hl=ja)
 
 ### 2-1. 録音データを集める
@@ -108,8 +105,8 @@ ffmpeg -i input.wav -ss 0.5 -t 1.0 -ac 1 -ar 16000 -c:a pcm_s16le cut.wav
 
 推論までの流れは以下です。
 
-1. `AudioContext` から音声データを `Float32Array`（1次元配列）として取得  
-2. 取得した波形を、モデル入力形式（MFCC）へ変換  
+1. `AudioContext` から音声データを `Float32Array`（1次元配列）として取得
+2. 取得した波形を、モデル入力形式（MFCC）へ変換
     1. 波形（時間領域）: Float32Array => Tensor1D化
     2. Tensor1D化した波形 => 短時間フーリエ変換（複素数）
     3. 波形の複素スペクトル => スペクトログラム（振幅（magnitude）を利用）へ変換
@@ -747,7 +744,7 @@ async function startMicLoop(onaudioprocessCallback) {
 
 ## 4. 感想
 
-- 今回は 1 人分（約 100 ファイル）の `asial` 音声だけで学習したため、話者が変わると精度が落ちやすいと感じました。  
+- 今回は 1 人分（約 100 ファイル）の `asial` 音声だけで学習したため、話者が変わると精度が落ちやすいと感じました。
   複数人の音声データで学習し、汎化性能を上げたいです。
 - 今回のモデルは、推論側でも同じ前処理（Float32Array → MFCC）を行えば、ブラウザ以外（アプリ／IoTデバイス等）でも同様に動かせる可能性があります。  
   次は別プラットフォームへの移植性も検証してみたいです。
