@@ -28,7 +28,8 @@ TensorFlow.js は、ブラウザや Node.js 上で機械学習モデルの**学�
 
 ### 2-1. 録音データを集める
 
-<img src="/res/step3.png" alt="">
+<img src="https://raw.githubusercontent.com/ytatsuno/202601_voice_recognition/main/res/step3.png" alt="">
+
 
 MacBookAir の「ボイスメモ」で `asial` の音声を収録します。
 
@@ -741,7 +742,8 @@ async function startMicLoop(onaudioprocessCallback) {
 
 動作は以下のような動きとなりました。
 
-<img src="/res/step4.gif" alt="">
+<img src="https://raw.githubusercontent.com/ytatsuno/202601_voice_recognition/main/res/step4.gif" alt="">
+
 
 これでTensorflow.jsを利用して「アシアル」や「go」「right」などの操作語を音声認識できるようになりました。
 
