@@ -1,43 +1,51 @@
-# Tensorflow.js で 「アシアル」を音声検知させる
+# TensorFlow.js で「アシアル」を音声検知させる
 
-Tensorflow.js で 「アシアル」を音声検知させる検証を行いました。
-以下のレポジトリに作成したソースコードをまとめて公開しています。
+TensorFlow.js を使って、キーワード **「アシアル（asial）」** を含む短音声コマンドを**ブラウザ上で分類**できるか検証しました。  
+学習済みモデルの作成手順と、Webアプリでの推論実装（マイク入力→MFCC→predict）までをまとめています。
 
-
-## 1.Tensorflow.jsとは
-
-Tensorflow.js は CNN（Convolutional Neural Network 畳込みニューラルネットワーク）などの機能を初めから有した機械学習フレームワーク。
-Tensorflow.js は Tensor（テンソル）という、高速処理のために最適化されたデータ構造を利用してニューラルネットワークとデータをやり取りを行う。
-Tensorflow.js を用いることで様々なwebサイトやIoTデバイスにおいて、機械学習を実行することができる。
+ソースコード一式はこちらのリポジトリで公開しています。  
+https://github.com/ytatsuno/202601_voice_recognition
 
 
-## 2. 「アシアル」を認識するカスタムの音声認識モデルを作成
-具体的に以下の分類を行うモデルを作成しました。
+## 1. TensorFlow.js とは
+
+TensorFlow.js は、ブラウザや Node.js 上で機械学習モデルの**学習・推論**ができる JavaScript 向けフレームワークです。  
+内部では **Tensor（テンソル）** という多次元配列データ構造を使い、ニューラルネットワークとデータのやり取りを行います。  
+そのため、Webサイトや IoT デバイスなどでも、モデル推論を比較的手軽に組み込めます。
+
+
+## 2. 「アシアル」を認識するカスタム音声モデルを作成
+
+今回作成したモデルは、以下のクラスを分類します。
 
 ```
 - 指示コマンド：`up, down, left, right, go, stop`  
 - 自作キーワード：`asial`  
 - 追加クラス：`unknown`, `background_noise`
 ```
-
-今回、指示コマンドの短時間の音声データは、Googleの提供している [Speech Commands](https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_v0.02.tar.gz) をダウンロードして利用しました。
+指示コマンド（短時間音声）のデータは、Google が提供している Speech Commands データセットを利用しました。  
+[Speech Commands v0.02](https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_v0.02.tar.gz)
 
 ### 2-1. 録音データを集める
 
 <img src="/res/step3.png" alt="">
 
-1. ボイスメモで録音する（手順）
-1. ボイスメモを開く
-1. 赤い録音ボタンを押す
-1. 0.5秒待ってから「アシアル」と1回言う
-1. 0.5秒待って停止
-1. タイトルを分かるように変更
-  - 例：asial_yao_001（話者名_連番）
+MacBookAir の「ボイスメモ」で `asial` の音声を収録します。
 
-1人あたり、100〜300ほどのデータを用意します。（今回は検証のため1人分のみ作成）
+1. 「ボイスメモ」を開く  
+2. 赤い録音ボタンを押す  
+3. 0.5秒待ってから「アシアル」と1回発話  
+4. 0.5秒待って停止  
+5. タイトルを分かるように変更  
+   - 例：`asial_yao_001`（キーワード_話者名_連番）
 
-### 2-2. 録音データを成形
-以下の仕様で、ffmpeg を利用してデータ形式、データ長を成形します。
+目安として **1人あたり 100〜300 件**用意します。  
+（今回は検証のため、1人分のみ作成しました）
+
+### 2-2. 録音データを成形する
+
+Speech Commands 系の短音声運用に合わせるため、`ffmpeg` で音声の形式・長さを揃えます。
+
 
 ```
 形式：WAV
@@ -58,30 +66,34 @@ ffmpeg -i input.wav -ss 0.5 -t 1.0 -ac 1 -ar 16000 -c:a pcm_s16le cut.wav
 ```
 
 ### 2-3. 音声解析モデルの作成
-今回は Google Colab を利用してモデルを作成しました。
-以下モデル作成時の ipynb ファイルのリンクです。
-[ipynbのリンク]
+
+モデル学習は Google Colab で行いました。
+使用したノートブック（ipynb）はこちらです。
+[ipynbのリンク](https://github.com/ytatsuno/202601_voice_recognition/blob/main/asial_kws_colab_tfjs_udlrgo_stop_asial_pcm16_1768353193.ipynb)
 
 処理の流れは以下の通りです。
-1. [Speech Commands](https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_v0.02.tar.gz) をダウンロード
-    - =>既存指示コマンド（`up, down, left, right, go, stop` ）と unknown を作る  
-2. _background_noise_ から 1秒ノイズ片を作り、さらに学習時にランダムにミックス  
-3. `asial` の自作音声 を Google Drive の My Drive から読み込み  
-4. データ前処理を以下の手順で行う
+1. Speech Commands をダウンロード  
+   - 既存の指示コマンド（`up, down, left, right, go, stop`）と `unknown` 用データとして利用  
+2. `_background_noise_` から 1 秒のノイズ片を作り、学習時にランダムにミックス  
+3. 自作キーワード `asial` の音声を Google Drive（My Drive）から読み込み  
+4. 前処理（特徴量変換）を実行  
     1. 操作語の音声WAV（asialも含む） を **16kHz / mono / 1.0秒 / float32** に統一（重要）
     1. 波形（時間領域）: Float32Array => Tensor1D化
     2. Tensor1D化した波形 => 短時間フーリエ変換（複素数）
     3. 波形の複素スペクトル => スペクトログラム（振幅（magnitude）を利用）へ変換
     4. スペクトログラム => 波形のメル尺度（音の高低の尺度） を計算
     5. 波形のメル尺度 => MFCC（メル周波数ケプストラム係数[1, T, 13, 1] ）のまとまりに変換
-6. 成形したデータを利用して CNN（Convolutional Neural Network 畳込みニューラルネットワーク）の学習を実行
-7. 学習済みの modelデータを元に、TFJS 向けに `model.json` を出力
+5. 成形したデータを用いて CNN（畳み込みニューラルネットワーク）を学習  
+6. 学習済みモデルを TFJS 向けに変換し `model.json` を出力  
 
-## 3. 音声解析処理実装
+## 3. （ブラウザ側）音声推論処理の実装
 
-1. AudioContext から 音声データを Float32Array などの1次元配列 で取得
-2. データ処理
-  - 音声データから、modelが読み込めるデータ（ある長さのフレーム毎の特徴量数を含むMFCC（メル周波数ケプストラム係数[1, T, 13, 1]）のまとまり）に変換
+ブラウザで AudioContext から取得した音声データを推論します。
+推論のため、学習済み model が読み込めるデータ（ある長さのフレーム毎の特徴量数を含むMFCC（メル周波数ケプストラム係数[1, T, 13, 1]）のまとまり）に変換します。
+推論までの流れは以下です。
+
+1. `AudioContext` から音声データを `Float32Array`（1次元配列）として取得  
+2. 取得した波形を、モデル入力形式（MFCC）へ変換  
     1. 波形（時間領域）: Float32Array => Tensor1D化
     2. Tensor1D化した波形 => 短時間フーリエ変換（複素数）
     3. 波形の複素スペクトル => スペクトログラム（振幅（magnitude）を利用）へ変換
@@ -731,10 +743,18 @@ async function startMicLoop(onaudioprocessCallback) {
 
 <img src="/res/step4.gif" alt="">
 
-これでTensorflow.jsを利用して「アシアル」を音声認識できるようになりました。
+これでTensorflow.jsを利用して「アシアル」や「go」「right」などの操作語を音声認識できるようになりました。
 
 
 ## 4. 感想
 
-- 今回は1人分のみ「アシアル」の音声 100ファイル程で学習を行ったため、複数人の音声ファイルで行った方が精度が上がるため、改善点としてあげたいと思いました。
-- 今回の model は 同じデータ処理方法（Float32Array => MFCC）を行うことで、別のプラットフォーム（アプリ、IoTデバイス）でも Tensorflow が動かせるか試してみたいと思いました。
+- 今回は 1 人分（約 100 ファイル）の `asial` 音声だけで学習したため、話者が変わると精度が落ちやすいと感じました。  
+  複数人の音声データで学習し、汎化性能を上げたいです。
+- 今回のモデルは、推論側でも同じ前処理（Float32Array → MFCC）を行えば、ブラウザ以外（アプリ／IoTデバイス等）でも同様に動かせる可能性があります。  
+  次は別プラットフォームへの移植性も検証してみたいです。
+
+## 参考
+
+- How to Use Embedded Machine Learning to Do Speech Recognition on Arduino https://www.digikey.com/en/maker/projects/how-to-use-embedded-machine-learning-to-do-speech-recognition-on-arduino/1d5dd38c05d9494180d5e5b7b657804d
+- Speech Commands Dataset（Google）: https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_v0.02.tar.gz
+
