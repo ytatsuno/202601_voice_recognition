@@ -1,0 +1,330 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #fefefe;  /* ★背景 */
+        color: #111;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      }
+
+      /* 画面左上から 90% x 90% を使う */
+      #stage {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 90vw;
+        height: 90vh;
+        border: 1px solid rgba(0,0,0,0.15);
+        box-sizing: border-box;
+        overflow: hidden;
+        background: #fefefe; /* ★背景（念のため） */
+      }
+
+      /* ★描画は canvas に寄せる */
+      #gameCanvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      #hud {
+        position: absolute;
+        left: 8px;
+        bottom: 8px;
+        font-size: 12px;
+        opacity: 0.9;
+        background: rgba(255,255,255,0.75);
+        color: #111;
+        padding: 6px 8px;
+        border-radius: 8px;
+        border: 1px solid rgba(0,0,0,0.08);
+        backdrop-filter: blur(4px);
+      }
+
+      #endOverlay {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        background: rgba(255,255,255,0.75);
+        color: #111;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="stage">
+      <canvas id="gameCanvas"></canvas>
+
+      <div id="endOverlay">アプリ終了</div>
+      <div id="hud">
+        <div>labels: <span id="words">(loading...)</span></div>
+        <div>heard: <span id="heard">(none)</span></div>
+      </div>
+    </div>
+
+    <script src="./js/asialVoiceRecognition.js"></script>
+    <script>
+      // ---------------- DOM ----------------
+      const stage = document.getElementById("stage");
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      const endOverlay = document.getElementById("endOverlay");
+      const heardEl = document.getElementById("heard");
+
+      // HUD表示は既存のまま利用
+      const wordsEl = document.getElementById("words");
+
+      // ---------------- 状態 ----------------
+      const BASE_SIZE_PX = 28;
+      const ASIAL_SIZE_PX = 40;
+
+      // 「+1」の単位（グリッド1マス分）
+      const STEP_PX = 30;
+
+      // 方向（あなたの手元で動いている rot を踏襲）
+      // ※rot は「絵文字の向き」を canvas で回転して描くために使う
+      const DIRECTIONS = {
+        up:    { dx:  0, dy: -1, rot:  90 },
+        left:  { dx: -1, dy:  0, rot:   0 },
+        down:  { dx:  0, dy:  1, rot: -90 },
+        right: { dx:  1, dy:  0, rot: 180 },
+      };
+
+      let dir = "left";
+      let gridX = 0;
+      let gridY = 0;
+
+      // 連打防止
+      const COOLDOWN_MS = 700;
+      let lastCmdAt = 0;
+
+      // asial パルス
+      let asialTimer = null;
+      let turtleSizePx = BASE_SIZE_PX;
+
+      // stop されたか
+      let ended = false;
+
+      // startMicLoop の controller
+      let micController = null;
+
+      // ★軌跡（通った地点を保存）
+      // 中央を (0,0) とする「グリッド座標」で保存して、描画時に px に変換
+      const trail = [{ x: 0, y: 0 }];
+
+      // ---------------- 位置変換 ----------------
+      function getStageSize() {
+        return { w: stage.clientWidth, h: stage.clientHeight };
+      }
+
+      function gridToPx(gx, gy) {
+        const { w, h } = getStageSize();
+        const centerX = Math.floor(w / 2);
+        const centerY = Math.floor(h / 2);
+        return {
+          x: centerX + gx * STEP_PX,
+          y: centerY + gy * STEP_PX,
+        };
+      }
+
+      // ---------------- canvas リサイズ ----------------
+      function resizeCanvas() {
+        // CSSサイズと実ピクセルを一致させる（高DPI対応）
+        const { w, h } = getStageSize();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        draw(); // リサイズ時に再描画
+      }
+
+      // ---------------- 描画 ----------------
+      function clearBackground() {
+        const { w, h } = getStageSize();
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "#fefefe";
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      function drawTrail() {
+        if (trail.length < 2) return;
+
+        ctx.save();
+        ctx.lineWidth = 3;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "rgba(20, 20, 20, 0.35)";
+
+        ctx.beginPath();
+        const p0 = gridToPx(trail[0].x, trail[0].y);
+        ctx.moveTo(p0.x, p0.y);
+
+        for (let i = 1; i < trail.length; i++) {
+          const p = gridToPx(trail[i].x, trail[i].y);
+          ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // 点も少し強調（見やすく）
+        ctx.save();
+        ctx.fillStyle = "rgba(20, 20, 20, 0.35)";
+        for (const t of trail) {
+          const p = gridToPx(t.x, t.y);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      function drawTurtle() {
+        const { w, h } = getStageSize();
+        const margin = 20;
+
+        let p = gridToPx(gridX, gridY);
+
+        // クランプ（canvas 版でも同様）
+        p.x = Math.max(margin, Math.min(w - margin, p.x));
+        p.y = Math.max(margin, Math.min(h - margin, p.y));
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((DIRECTIONS[dir].rot * Math.PI) / 180);
+
+        ctx.font = `${turtleSizePx}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#111";
+        ctx.fillText("🐢", 0, 0);
+
+        ctx.restore();
+      }
+
+      function draw() {
+        clearBackground();
+        drawTrail();
+        drawTurtle();
+      }
+
+      // ---------------- 操作 ----------------
+      function setDirection(newDir) {
+        if (!DIRECTIONS[newDir]) return;
+        dir = newDir;
+        draw();
+      }
+
+      function goForward() {
+        gridX += DIRECTIONS[dir].dx;
+        gridY += DIRECTIONS[dir].dy;
+
+        // ★軌跡に追加（同じ点連続追加は避ける）
+        const last = trail[trail.length - 1];
+        if (!last || last.x !== gridX || last.y !== gridY) {
+          trail.push({ x: gridX, y: gridY });
+        }
+
+        draw();
+      }
+
+      function asialPulse() {
+        clearTimeout(asialTimer);
+        turtleSizePx = ASIAL_SIZE_PX;
+        draw();
+        asialTimer = setTimeout(() => {
+          turtleSizePx = BASE_SIZE_PX;
+          draw();
+        }, 350);
+      }
+
+      function endApp() {
+        if (ended) return;
+        ended = true;
+
+        endOverlay.style.display = "flex";
+
+        if (micController && typeof micController.stop === "function") {
+          micController.stop();
+        }
+      }
+
+      function shouldAcceptCommand(now) {
+        if (ended) return false;
+        if (now - lastCmdAt < COOLDOWN_MS) return false;
+        lastCmdAt = now;
+        return true;
+      }
+
+      // ---------------- アプリ起動 ----------------
+      async function app() {
+        // 初期描画
+        turtleSizePx = BASE_SIZE_PX;
+        resizeCanvas();
+
+        await loadAssets();
+
+        // labels を HUD へ（asialVoiceRecognition.js 側が既に書いてくれるなら不要だが、念のため）
+        if (wordsEl && window.labels && window.labels.labels) {
+          wordsEl.textContent = window.labels.labels.join(", ");
+        }
+
+        micController = await startMicLoop((scores, labels) => {
+          if (ended) return;
+
+          // 推論結果のベストを探す
+          let bestIdx = 0;
+          for (let i = 1; i < scores.length; i++) {
+            if (scores[i] > scores[bestIdx]) bestIdx = i;
+          }
+
+          const bestWord = labels.labels[bestIdx];
+          const bestScore = scores[bestIdx];
+
+          heardEl.textContent = `${bestWord} (${bestScore.toFixed(3)})`;
+
+          const THRESHOLD = 0.60;
+          if (bestScore < THRESHOLD) return;
+
+          const now = Date.now();
+
+          if (bestWord === "stop") {
+            endApp();
+            return;
+          }
+
+          if (!shouldAcceptCommand(now)) return;
+
+          if (bestWord === "up" || bestWord === "down" || bestWord === "left" || bestWord === "right") {
+            setDirection(bestWord);
+            return;
+          }
+
+          if (bestWord === "go") {
+            goForward();
+            return;
+          }
+
+          if (bestWord === "asial") {
+            asialPulse();
+            return;
+          }
+        });
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+
+      app();
+    </script>
+  </body>
+</html>

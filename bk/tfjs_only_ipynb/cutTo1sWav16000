@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <dir_name>"
+  echo "Example: $0 xxx"
+  exit 1
+fi
+
+dir="$1"
+
+in_dir="dataset/wav/${dir}"
+out_dir="dataset/wav_1s/${dir}"
+
+mkdir -p "$out_dir"
+
+shopt -s nullglob
+for f in "${in_dir}"/*.wav; do
+  base="$(basename "$f")"
+  docker run --rm -v "$PWD":/work -w /work jrottenberg/ffmpeg:6.1-alpine \
+    -i "/work/$f" \
+    -ss 0.35 -t 1.0 \
+    -ac 1 -ar 16000 -c:a pcm_s16le \
+    "/work/${out_dir}/${base}"
+done
+
+# ffmpeg -i input.wav -ss 0.5 -t 1.0 -ac 1 -ar 16000 -c:a pcm_s16le cut.wav

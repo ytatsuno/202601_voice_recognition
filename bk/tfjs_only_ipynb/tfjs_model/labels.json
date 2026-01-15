@@ -1,0 +1,15 @@
+{
+  "labels": [
+    "up",
+    "down",
+    "left",
+    "right",
+    "go",
+    "stop",
+    "asial",
+    "unknown",
+    "background_noise"
+  ],
+  "sample_rate": 16000,
+  "clip_samples": 16000
+}

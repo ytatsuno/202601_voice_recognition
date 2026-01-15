@@ -1,0 +1,23 @@
+{
+  "labels": [
+    "up",
+    "down",
+    "left",
+    "right",
+    "go",
+    "stop",
+    "asial",
+    "unknown",
+    "background_noise"
+  ],
+  "sample_rate": 16000,
+  "clip_samples": 16000,
+  "frame_length": 640,
+  "frame_step": 320,
+  "fft_length": 1024,
+  "num_mel_bins": 40,
+  "lower_edge_hz": 20.0,
+  "upper_edge_hz": 8000.0,
+  "num_mfcc": 13,
+  "num_spectrogram_bins": 513
+}
